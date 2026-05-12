@@ -273,7 +273,7 @@ function countIcons(folder) {
   try {
     return fs
       .readdirSync(dir)
-      .filter((f) => f.endsWith(".png") && !f.startsWith("._")).length;
+      .filter((f) => f.endsWith(".svg") && !f.startsWith("._")).length;
   } catch {
     return 0;
   }
@@ -284,12 +284,12 @@ function countIcons(folder) {
 // ---------------------------------------------------------------------------
 
 function buildFileIcons(iconsFolder, folderName) {
-  const fileIcons = { default: { path: `./icons/${folderName}/file.png` } };
+  const fileIcons = { default: { path: `./icons/${folderName}/file.svg` } };
   for (const file of fs.readdirSync(iconsFolder).sort()) {
-    if (!file.endsWith(".png") || file.startsWith("._")) continue;
+    if (!file.endsWith(".svg") || file.startsWith("._")) continue;
     const iconId = path.parse(file).name;
     if (iconId.startsWith("folder_")) continue;
-    fileIcons[iconId] = { path: `./icons/${folderName}/${iconId}.png` };
+    fileIcons[iconId] = { path: `./icons/${folderName}/${iconId}.svg` };
   }
   return fileIcons;
 }
@@ -326,10 +326,10 @@ function buildThemeFromVscodeJson(vscodeThemePath, folderName, iconsFolder) {
   const namedDirs = {};
   for (const [name, iconId] of Object.entries(folderNames)) {
     const expandedId = folderNamesExpanded[name] || `${iconId}_open`;
-    if (fs.existsSync(path.join(iconsFolder, `${iconId}.png`))) {
+    if (fs.existsSync(path.join(iconsFolder, `${iconId}.svg`))) {
       const entry = {
-        collapsed: `./icons/${folderName}/${iconId}.png`,
-        expanded: `./icons/${folderName}/${expandedId}.png`,
+        collapsed: `./icons/${folderName}/${iconId}.svg`,
+        expanded: `./icons/${folderName}/${expandedId}.svg`,
       };
       namedDirs[name] = entry;
       namedDirs[name.toLowerCase()] = entry;
@@ -385,8 +385,8 @@ function buildFlowIconsJson() {
       name,
       appearance,
       directory_icons: {
-        collapsed: `./icons/${folder}/folder_gray.png`,
-        expanded: `./icons/${folder}/folder_gray_open.png`,
+        collapsed: `./icons/${folder}/folder_gray.svg`,
+        expanded: `./icons/${folder}/folder_gray_open.svg`,
       },
       file_icons: buildFileIcons(iconsFolder, folder),
       file_suffixes: fileSuffixes,
