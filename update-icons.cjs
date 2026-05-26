@@ -38,6 +38,84 @@ const C = {
 };
 
 // ---------------------------------------------------------------------------
+// Flow You palette defaults
+// ---------------------------------------------------------------------------
+//
+// The VS Code extension ships SVG templates under `extension/icons/` whose
+// fills are written as CSS-variable-like tokens (e.g. `fill="--blue"`). The
+// extension's "Rebuild Icons" command does a plain string replace to swap
+// each `--<name>` for the user's chosen hex color, then writes the result
+// into `you/` (dark) and `you-light/` (light) folders.
+//
+// We mirror that exact pipeline here so the Zed port behaves identically.
+// The base palettes below are the monochromatic slate defaults from the
+// extension's `colors.js` (after `fillColors` has populated contrast/border).
+
+const BASE_PALETTE_YOU = {
+  white: "#f8fafc",
+  black: "#1e293b",
+  blue: "#94a3b8",
+  brown: "#94a3b8",
+  gray: "#94a3b8",
+  green: "#94a3b8",
+  lime: "#94a3b8",
+  orange: "#94a3b8",
+  pink: "#94a3b8",
+  purple: "#94a3b8",
+  red: "#94a3b8",
+  sky: "#94a3b8",
+  teal: "#94a3b8",
+  yellow: "#94a3b8",
+  borderOpacity: 0.1,
+  contrast: "#f8fafc",
+  border: "#f8fafc",
+};
+
+const BASE_PALETTE_YOU_LIGHT = {
+  white: "#f1f5f9",
+  black: "#0f172a",
+  blue: "#64748b",
+  brown: "#64748b",
+  gray: "#64748b",
+  green: "#64748b",
+  lime: "#64748b",
+  orange: "#64748b",
+  pink: "#64748b",
+  purple: "#64748b",
+  red: "#64748b",
+  sky: "#64748b",
+  teal: "#64748b",
+  yellow: "#64748b",
+  borderOpacity: 0.1,
+  contrast: "#0f172a",
+  border: "#0f172a",
+};
+
+// Color keys the user is allowed to override. Anything else gets dropped on
+// load. `border` and `contrast` are documented as overridable in the upstream
+// readme even though the extension's own normalizeColors strips them; we
+// honour the documented behaviour here.
+const ALLOWED_COLOR_KEYS = new Set([
+  "white",
+  "black",
+  "blue",
+  "brown",
+  "gray",
+  "green",
+  "lime",
+  "orange",
+  "pink",
+  "purple",
+  "red",
+  "sky",
+  "teal",
+  "yellow",
+  "border",
+  "contrast",
+  "borderOpacity",
+]);
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -123,6 +201,209 @@ async function download(url) {
   if (status !== 200)
     throw new Error(`Download failed (${status}): ${body.toString()}`);
   return body;
+}
+
+// ---------------------------------------------------------------------------
+// Color math (ported from the VS Code extension's colors.js)
+// ---------------------------------------------------------------------------
+
+function hexToRgb(hex) {
+  let h = hex.replace("#", "");
+  if (h.length === 3) {
+    h = h
+      .split("")
+      .map((c) => c + c)
+      .join("");
+  }
+  const num = parseInt(h, 16);
+  return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
+}
+
+function rgbToHsl(r, g, b) {
+  r /= 255;
+  g /= 255;
+  b /= 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  let h;
+  let s;
+  const l = (max + min) / 2;
+  if (max === min) {
+    h = 0;
+    s = 0;
+  } else {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r:
+        h = (g - b) / d + (g < b ? 6 : 0);
+        break;
+      case g:
+        h = (b - r) / d + 2;
+        break;
+      default:
+        h = (r - g) / d + 4;
+    }
+    h /= 6;
+  }
+  return [h * 360, s * 100, l * 100];
+}
+
+function hslToRgb(h, s, l) {
+  h /= 360;
+  s /= 100;
+  l /= 100;
+  let r;
+  let g;
+  let b;
+  if (s === 0) {
+    r = l;
+    g = l;
+    b = l;
+  } else {
+    const hue2rgb = (p, q, t) => {
+      let t2 = t;
+      if (t2 < 0) t2 += 1;
+      if (t2 > 1) t2 -= 1;
+      if (t2 < 1 / 6) return p + (q - p) * 6 * t2;
+      if (t2 < 1 / 2) return q;
+      if (t2 < 2 / 3) return p + (q - p) * (2 / 3 - t2) * 6;
+      return p;
+    };
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r = hue2rgb(p, q, h + 1 / 3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1 / 3);
+  }
+  return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+}
+
+function rgbToHex(r, g, b) {
+  return (
+    "#" +
+    [r, g, b]
+      .map((x) => x.toString(16).padStart(2, "0"))
+      .join("")
+      .toLowerCase()
+  );
+}
+
+// Auto-derive a light-mode color from a dark-mode color. Matches the
+// extension's heuristic: bump saturation slightly, drop lightness by 8.
+function darken(hex) {
+  const [r, g, b] = hexToRgb(hex);
+  const [h, s0, l0] = rgbToHsl(r, g, b);
+  const s = Math.max(0, Math.min(100, s0 + (s0 > 90 ? 1 : 8)));
+  const l = Math.max(0, Math.min(100, l0 - 8));
+  const [r2, g2, b2] = hslToRgb(h, s, l);
+  return rgbToHex(r2, g2, b2);
+}
+
+function invert(hex) {
+  const [r, g, b] = hexToRgb(hex);
+  return rgbToHex(255 - r, 255 - g, 255 - b);
+}
+
+// Keep only the canonical color keys; mirrors the extension's
+// normalizeColors. Returns a new object so the caller's input is untouched.
+function filterAllowedColors(input) {
+  const out = {};
+  if (!input || typeof input !== "object") return out;
+  for (const [k, v] of Object.entries(input)) {
+    if (ALLOWED_COLOR_KEYS.has(k)) out[k] = v;
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Flow You builder
+// ---------------------------------------------------------------------------
+
+const FLOW_YOU_TEMPLATE_DIR = path.join(ICONS_DIR, "icons");
+
+// Generate `you/` and `you-light/` from the template SVGs in `icons/` by
+// substituting `--<colorName>` placeholders with the user's chosen palette.
+//
+// Contract: the source templates contain tokens like `fill="--blue"` and
+// `fill-opacity="--borderOpacity"`. We replace longest names first so
+// `--borderOpacity` is consumed before `--border` would match its prefix.
+function buildYouIcons(userColors) {
+  if (!fs.existsSync(FLOW_YOU_TEMPLATE_DIR)) {
+    throw new Error(
+      `Template folder missing: ${FLOW_YOU_TEMPLATE_DIR}. ` +
+        `Delete .icon-version and rerun to force a re-download.`,
+    );
+  }
+
+  // Split user input into dark (top-level) + light (nested override).
+  const { light: lightInput, ...darkInput } = userColors || {};
+  const dark = filterAllowedColors(darkInput);
+  const light = filterAllowedColors(lightInput);
+
+  // Auto-derive missing light entries from dark, matching the extension.
+  for (const [key, value] of Object.entries(dark)) {
+    if (key === "border" || key === "contrast") continue;
+    if (light[key] != null) continue;
+    light[key] =
+      typeof value === "string" && value.startsWith("#")
+        ? darken(value)
+        : value;
+  }
+
+  // Ensure contrast/border exist. The extension's fillColors uses white in
+  // dark mode and black in light mode; we follow the same rule but also let
+  // the user pre-fill either explicitly. Only assign when the source value
+  // is actually defined — otherwise we'd add a `contrast: undefined` /
+  // `border: undefined` property here that would overwrite the base
+  // palette's hex defaults during the spread merge below and end up
+  // substituted as the literal string "undefined" in the generated SVGs.
+  if (dark.contrast == null && dark.white != null) dark.contrast = dark.white;
+  if (dark.border == null && dark.contrast != null) dark.border = dark.contrast;
+  if (light.contrast == null && light.black != null) {
+    light.contrast = light.black;
+  }
+  if (light.border == null && dark.border != null) {
+    light.border = invert(dark.border);
+  } else if (light.border == null && light.contrast != null) {
+    light.border = light.contrast;
+  }
+
+  const variants = [
+    { name: "you", base: BASE_PALETTE_YOU, override: dark },
+    { name: "you-light", base: BASE_PALETTE_YOU_LIGHT, override: light },
+  ];
+
+  const templateFiles = fs
+    .readdirSync(FLOW_YOU_TEMPLATE_DIR)
+    .filter((f) => f.endsWith(".svg") && !f.startsWith("._"))
+    .sort();
+
+  for (const { name, base, override } of variants) {
+    const destFolder = path.join(ICONS_DIR, name);
+    // Rebuild from scratch so stale icons from previous configs are removed.
+    fs.rmSync(destFolder, { recursive: true, force: true });
+    fs.mkdirSync(destFolder, { recursive: true });
+
+    const merged = { ...base, ...override };
+    const sortedEntries = Object.entries(merged).sort(
+      (a, b) => b[0].length - a[0].length,
+    );
+
+    for (const file of templateFiles) {
+      const sourcePath = path.join(FLOW_YOU_TEMPLATE_DIR, file);
+      const destPath = path.join(destFolder, file);
+      let content = fs.readFileSync(sourcePath, "utf8");
+      for (const [colorName, value] of sortedEntries) {
+        // Color names are alphanumeric; safe to interpolate into RegExp.
+        content = content.replace(
+          new RegExp(`--${colorName}`, "g"),
+          String(value),
+        );
+      }
+      fs.writeFileSync(destPath, content);
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -504,13 +785,8 @@ function applyConfigToTheme(theme, config, folderName, iconsFolder) {
   }
 }
 
-function buildFlowIconsJson() {
+function buildFlowIconsJson(config) {
   fs.mkdirSync(THEME_DIR, { recursive: true });
-
-  const config = loadConfig();
-  if (config) {
-    console.log(`${C.green}Loaded config.json${C.nc}`);
-  }
 
   const palettes = [
     { folder: "deep", name: "Flow Deep", appearance: "dark" },
@@ -533,6 +809,13 @@ function buildFlowIconsJson() {
       name: "Flow Dawn (Light)",
       appearance: "light",
       themeJson: "dawn",
+    },
+    { folder: "you", name: "Flow You", appearance: "dark" },
+    {
+      folder: "you-light",
+      name: "Flow You (Light)",
+      appearance: "light",
+      themeJson: "you",
     },
   ];
 
@@ -614,13 +897,18 @@ async function main() {
     process.exit(1);
   }
 
-  // If the source VS Code theme JSONs aren't on disk, we can't rebuild without
-  // re-downloading - older versions of this script deleted them. Drop the
-  // recorded version so the normal version-mismatch path triggers a refresh.
-  const sourceJsonsExist = ["deep.json", "dim.json", "dawn.json"].every((f) =>
-    fs.existsSync(path.join(ICONS_DIR, f)),
-  );
-  if (!sourceJsonsExist && fs.existsSync(VERSION_FILE)) {
+  // If the source VS Code theme JSONs or the Flow You templates aren't on
+  // disk, we can't rebuild without re-downloading - older versions of this
+  // script didn't fetch them. Drop the recorded version so the normal
+  // version-mismatch path triggers a refresh.
+  const sourceJsonsExist = [
+    "deep.json",
+    "dim.json",
+    "dawn.json",
+    "you.json",
+  ].every((f) => fs.existsSync(path.join(ICONS_DIR, f)));
+  const templatesExist = fs.existsSync(FLOW_YOU_TEMPLATE_DIR);
+  if ((!sourceJsonsExist || !templatesExist) && fs.existsSync(VERSION_FILE)) {
     fs.rmSync(VERSION_FILE, { force: true });
   }
 
@@ -691,6 +979,9 @@ async function main() {
         process.stdout.write("Extracting icons... ");
         fs.rmSync(ICONS_DIR, { recursive: true, force: true });
         fs.mkdirSync(ICONS_DIR, { recursive: true });
+        // Note: the VSIX also ships pre-built `you/` and `you-light/`
+        // folders, but we generate those locally from `icons/` so the user
+        // can customize the Flow You palette via `config.json`.
         const iconDirs = [
           "deep/",
           "deep-light/",
@@ -698,8 +989,9 @@ async function main() {
           "dim-light/",
           "dawn/",
           "dawn-light/",
+          "icons/",
         ];
-        const themeJsons = ["deep.json", "dim.json", "dawn.json"];
+        const themeJsons = ["deep.json", "dim.json", "dawn.json", "you.json"];
         extractZip(
           vsixData,
           ICONS_DIR,
@@ -721,14 +1013,34 @@ async function main() {
     }
   }
 
+  // Load config once and pass it to both the Flow You builder and the
+  // theme builder so we don't double-log "Loaded config.json".
+  const config = loadConfig();
+  if (config) {
+    console.log(`${C.green}Loaded config.json${C.nc}`);
+  }
+
+  // Generate Flow You SVGs from the templates using the user's palette (or
+  // the default monochromatic slate when no `youColors` is configured).
+  process.stdout.write("Building Flow You icons... ");
+  try {
+    buildYouIcons(config?.youColors);
+    console.log(`${C.green}OK${C.nc}`);
+  } catch (e) {
+    console.log(`${C.red}Failed${C.nc}`);
+    console.log(`Error: ${e.message}`);
+    process.exit(1);
+  }
+
   // Build theme JSON
   process.stdout.write("Building theme... ");
   let themePath;
   try {
-    themePath = buildFlowIconsJson();
-    // Clean up anything that isn't an icon folder or a VS Code source theme JSON.
-    // The source theme JSONs (deep/dim/dawn.json) are kept so subsequent runs can
-    // rebuild from a changed config.json without re-downloading.
+    themePath = buildFlowIconsJson(config);
+    // Clean up anything that isn't an icon folder or a VS Code source theme
+    // JSON. The source theme JSONs and the Flow You template folder are
+    // kept so subsequent runs can rebuild from a changed config.json
+    // without re-downloading.
     const keepEntries = new Set([
       "deep",
       "deep-light",
@@ -736,9 +1048,13 @@ async function main() {
       "dim-light",
       "dawn",
       "dawn-light",
+      "you",
+      "you-light",
+      "icons",
       "deep.json",
       "dim.json",
       "dawn.json",
+      "you.json",
     ]);
     for (const entry of fs.readdirSync(ICONS_DIR)) {
       if (!keepEntries.has(entry)) {
@@ -766,6 +1082,8 @@ async function main() {
     "dim-light",
     "dawn",
     "dawn-light",
+    "you",
+    "you-light",
   ]) {
     const count = countIcons(folder);
     console.log(`  ${folder.padEnd(12)} ${count} icons`);
