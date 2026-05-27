@@ -19,13 +19,16 @@ git clone https://github.com/BenjaminHalko/flow-icons-zed.git
 
 Inside ZED, install the extension using the "Install Dev Extension" button
 
-## Extra Icons
+## Premium Icons (Optional)
 
 The extension comes with the base icon set, but if you want to use the premium icon set, then you will need to run the script to fetch the icons.
 
 ```bash
 node update-icons.cjs <FLOW_ICONS_LICENSE>
 ```
+
+You can support the original artist and get a license key here:
+https://flow-icons.pages.dev
 
 ## Available Themes
 
@@ -65,7 +68,6 @@ Add a `youColors` object to your `config.json`. Top-level keys are the dark-mode
 ```jsonc
 {
   "youColors": {
-    // Dark theme colors
     "white": "#bfbdb6",
     "black": "#0d1017",
     "blue": "#59c2ff",
@@ -80,11 +82,7 @@ Add a `youColors` object to your `config.json`. Top-level keys are the dark-mode
     "sky": "#39bae6",
     "teal": "#95e6cb",
     "yellow": "#ffcb8f",
-    // "border":   "#ffffff",   // defaults to `contrast`
-    // "contrast": "#ffffff",   // defaults to `white` (dark) / `black` (light)
-    "borderOpacity": 0,         // 0 hides the icon outlines
-
-    // Light theme overrides (everything else is auto-derived)
+    "borderOpacity": 0,
     "light": {
       "borderOpacity": 0.1
     }
