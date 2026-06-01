@@ -21,7 +21,7 @@ jobs:
       - name: Fetch icons
         run: node update-icons.cjs
 
-      - uses: stefanzweifel/git-auto-commit-action@v5
+      - uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "Update Flow Icons"
           file_pattern: "icons/ icon_themes/ .icon-version"
